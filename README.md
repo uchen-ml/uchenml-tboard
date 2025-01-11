@@ -23,7 +23,7 @@ Please do not add dependencies without discussing them first.
 
 ## Setting up Visual Studio Code
 
-Preferred tool chain is Clang/LLVM. Clangd extension is recommended.
+Preferred tool chain is Clang/LLVM. Clangd extension is recommended. I would strongly recommend installing the absolute latest version of Clangd from the LLVM website. The version in the Ubuntu repositories is very old and does not support many features.
 
 1. Make sure Microsoft C++ tools are not installed.
 1. Install the extensions in `.vscode/extensions.json` (may need to re)
@@ -31,6 +31,16 @@ Preferred tool chain is Clang/LLVM. Clangd extension is recommended.
 1. Restart the Clangd daemon (Ctrl+Shift+P, Clangd: Restart) - only needed when DB is rebuilt.
 
 ## Recipes
+
+### Bazel
+
+- `bazel build //...` - build everything
+- `bazel test //...` - run all tests. Use `--test_output=all` to see output from successful runs.
+- `bazel run //path/to:target` - run a binary target
+- `bazel run //path/to:target -- --flag=value output_file` - pass flags to the binary
+- `bazel test //path/to:target --test_output=all` - run a single test with all output
+- `--config=clang` after the verb (build/test/run) builds with Clang on Linux. `--config=asan` and `--config=ubsan` enable AddressSanitizer and UBSan, respectively. E.g. `bazel test --config=asan --config=clang //...` will run all tests with AddressSanitizer and Clang.
+- `--cxxopt` passes flags to the compiler. E.g. `--cxxopt=-march=native` will build for your CPU, helpful with SIMD. `--linkopt` passes flags to the linker.
 
 ### Logging
 
