@@ -1,0 +1,42 @@
+name: Tests
+
+on:
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  gcc14-tests:
+    name: GCC 14 Opt
+    runs-on: ubuntu-latest
+    container: gcc:14.2.0
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install Bazelisk
+      run: |
+        apt update && apt upgrade -y && apt install curl -y && \
+        curl -sSfL https://github.com/bazelbuild/bazelisk/releases/download/v1.23.0/bazelisk-linux-amd64 -o /usr/local/bin/bazel && \
+        echo "0fe572d6550898756ac1fa7f71d0a0d39532cf4cd9f74564697af1a088d8e292  /usr/local/bin/bazel" | sha256sum -c - && \
+        chmod +x /usr/local/bin/bazel
+    - name: Run tests
+      run: bazel test --test_output=errors -c opt --cxxopt="-Wall" --cxxopt="-Werror" //...
+
+  macos-tests:
+    name: MacOS Clang
+    runs-on: macos-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Run tests
+      run: bazel test --test_output=errors --cxxopt="-Wall" --cxxopt="-Werror" //...
+
+  windows-tests:
+    name: Windows VC2022
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Run tests
+      run: bazel test --test_output=errors --cxxopt="/WX" //...
+

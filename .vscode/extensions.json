@@ -1,0 +1,8 @@
+{
+    "recommendations": [
+        "bazelbuild.vscode-bazel",
+        "xaver.clang-format",
+        "llvm-vs-code-extensions.vscode-clangd",
+        "streetsidesoftware.code-spell-checker"
+    ]
+}

@@ -1,0 +1,7 @@
+bazel-bin
+bazel-out
+bazel-testlogs
+.cache/
+external
+bazel-uchen-core
+compile_commands.json
