@@ -8,5 +8,7 @@ cc_library(
     deps = [
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status:statusor",
+        "@crc32c//:crc32c",
+        "//proto:tensor_cc_proto",
     ],
 )

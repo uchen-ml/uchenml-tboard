@@ -38,6 +38,10 @@ int main(int argc, char* argv[]) {
     LOG(ERROR) << "Failed to open TBoard file: " << tboard_file.status();
     return 1;
   }
-  tboard_file->RecordLoss(0.5);
+
+  for (int i = 0; i < 10; ++i) {
+    tboard_file->RecordLoss(0.5 * i, i);
+    tboard_file->RecordScalar("accuracy", 0.9 * i, i);
+  }
   return 0;
 }
