@@ -2,6 +2,7 @@
 
 #include <fstream>
 #include <ios>
+#include <sstream>
 
 #include "absl/log/log.h"
 
@@ -14,12 +15,22 @@ namespace uchen::tboard {
 
 TBoardFile::~TBoardFile() {
   if (file_.is_open()) {
-    LOG(INFO) << "Closing log file: ";
+    LOG(INFO) << "Closing log file";
     file_.close();
   }
 }
 
 absl::StatusOr<TBoardFile> TBoardFile::Open(std::string_view path) {
+  if (path.empty()) {
+    return absl::InvalidArgumentError("Log file name must be provided");
+  }
+
+  if (path.find(uchen::tboard::kLogKey) == std::string::npos) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Log file name must contain \"%s\" to be processed by TensorBoard.",
+        uchen::tboard::kLogKey));
+  }
+
   std::ofstream file(std::string(path), std::ios::binary);
   if (!file.is_open()) {
     return absl::InternalError("Failed to open file");
@@ -29,7 +40,7 @@ absl::StatusOr<TBoardFile> TBoardFile::Open(std::string_view path) {
 
 void TBoardFile::RecordLoss(double loss, uint32_t step) {
   LOG(INFO) << "Recording loss: " << loss;
-  TBoardFile::AddScalar("loss", step, loss);
+  TBoardFile::AddScalar("loss", loss, step);
 }
 
 void TBoardFile::RecordScalar(const std::string& tag, double value,
@@ -37,13 +48,49 @@ void TBoardFile::RecordScalar(const std::string& tag, double value,
   TBoardFile::AddScalar(tag, value, step);
 }
 
+void TBoardFile::RecordImage(const std::string& tag, const std::string& image,
+                             uint32_t step, uint32_t width, uint32_t height,
+                             uint32_t channel, const std::string& image_name,
+                             const std::string& image_description) {
+  std::string encoded_image = EncodeImage(image);
+
+  LOG(INFO) << "Recording image: " << tag;
+
+  tensorflow::SummaryMetadata* metadata = new tensorflow::SummaryMetadata();
+  if (!image_name.empty()) {
+    metadata->set_display_name(image_name);
+  } else {
+    metadata->set_display_name(tag);
+  }
+  metadata->set_summary_description(image_description);
+
+  tensorflow::Summary::Image* image_summary = new tensorflow::Summary::Image();
+  image_summary->set_width(width);
+  image_summary->set_height(height);
+  image_summary->set_colorspace(channel);
+  image_summary->set_encoded_image_string(encoded_image);
+
+  tensorflow::Summary* summary = new tensorflow::Summary();
+  tensorflow::Summary::Value* summary_value = summary->add_value();
+  if (!summary_value) {
+    LOG(ERROR) << "[" << tag << "] Failed to add value to summary";
+    return;
+  }
+
+  summary_value->set_tag(tag);
+  summary_value->set_allocated_image(image_summary);
+  summary_value->set_allocated_metadata(metadata);
+
+  AddEvent(summary, step);
+}
+
 void TBoardFile::AddScalar(const std::string& tag, double value,
                            uint32_t step) {
   LOG(INFO) << "Adding scalar: " << tag << ": " << value << ", Step: " << value;
 
-  tensorflow::Summary summary;
+  tensorflow::Summary* summary = new tensorflow::Summary();
 
-  tensorflow::Summary::Value* summary_value = summary.add_value();
+  tensorflow::Summary::Value* summary_value = summary->add_value();
   if (!summary_value) {
     LOG(ERROR) << "[" << tag << "] Failed to add value to summary";
     return;
@@ -51,10 +98,19 @@ void TBoardFile::AddScalar(const std::string& tag, double value,
   summary_value->set_tag(tag);
   summary_value->set_simple_value(value);
 
+  AddEvent(summary, step);
+}
+
+void TBoardFile::AddEvent(tensorflow::Summary* summary, uint32_t step) {
+  if (!summary) {
+    LOG(ERROR) << "Failed to add event to summary";
+    return;
+  }
+
   tensorflow::Event event;
   event.set_wall_time(static_cast<double>(time(nullptr)));
   event.set_step(step);
-  event.mutable_summary()->Swap(&summary);
+  event.mutable_summary()->Swap(summary);
 
   std::string buffer;
   event.SerializeToString(&buffer);
@@ -73,6 +129,20 @@ void TBoardFile::AddScalar(const std::string& tag, double value,
   file_.write((char*)&crc_buffer, sizeof(uint32_t));
 }
 
+std::string TBoardFile::EncodeImage(const std::string& image) {
+  std::ostringstream string_stream;
+  std::ifstream file(image, std::ios::binary);
+  if (!file) {
+    LOG(ERROR) << "Failed to open image file: " << image;
+    return "";
+  }
+
+  string_stream << file.rdbuf();
+  file.close();
+
+  return string_stream.str();
+}
+
 // Return a masked representation of crc.
 //
 // Motivation: it is problematic to compute the CRC of a string that
@@ -80,6 +150,6 @@ void TBoardFile::AddScalar(const std::string& tag, double value,
 // somewhere (e.g., in files) should be masked before being stored.
 uint32_t TBoardFile::Mask(uint32_t crc) {
   // Rotate right by 15 bits and add a constant.
-  return ((crc >> 15) | (crc << 17)) + TBoardFile::kMaskDelta;
+  return ((crc >> 15) | (crc << 17)) + uchen::tboard::kMaskDelta;
 }
 }  // namespace uchen::tboard
