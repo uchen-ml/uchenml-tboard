@@ -5,3 +5,4 @@ bazel-testlogs
 external
 bazel-uchen-core
 compile_commands.json
+logs
