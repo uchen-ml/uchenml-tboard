@@ -3,6 +3,8 @@
 #include <fstream>
 #include <ios>
 #include <sstream>
+#include <string>
+#include <filesystem>
 
 #include "absl/log/log.h"
 
@@ -29,6 +31,17 @@ absl::StatusOr<TBoardFile> TBoardFile::Open(std::string_view path) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Log file name must contain \"%s\" to be processed by TensorBoard.",
         uchen::tboard::kLogKey));
+  }
+
+  // If the path is a directory, make the directory if it doesn't exist.
+  if (path.find('/') != std::string::npos) {
+    std::string_view directory = path.substr(0, path.find_last_of('/'));
+
+    if (!std::filesystem::exists(directory)) {
+      if (!std::filesystem::create_directories(directory)) {
+        return absl::InternalError("Failed to create logs directory");
+      }
+    }
   }
 
   std::ofstream file(std::string(path), std::ios::binary);
