@@ -20,4 +20,6 @@ git_override(
     commit = "0ae99b7adb025b251962942f6e8a698a5539888b",
 )
 
+bazel_dep(name = "protobuf", version = "29.3")
+
 bazel_dep(name = "crc32c", version = "1.1.0")
