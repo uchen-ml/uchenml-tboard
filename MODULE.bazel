@@ -3,7 +3,7 @@ TensorBoard support for UchenML framework
 """
 module(name = "uchen-tboard", version = "0.1", compatibility_level = 1)
 
-bazel_dep(name = "abseil-cpp", version = "20240722.0.bcr.2")
+bazel_dep(name = "abseil-cpp", version = "20240722.1")
 
 bazel_dep(name = "googletest", version = "1.15.2")
 git_override(
