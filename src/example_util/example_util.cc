@@ -1,3 +1,5 @@
+#include <cstdlib>
+#include <random>
 #include <string_view>
 
 #include "absl/flags/flag.h"
@@ -27,8 +29,9 @@ int main(int argc, char* argv[]) {
       executable.substr(executable.find_last_of("/\\") + 1)));
   auto args = absl::ParseCommandLine(argc, argv);
   absl::InitializeLog();
-  if (args.size() != 2) {
+  if (args.size() != 3) {
     std::cerr << "Output file name is required\n";
+    std::cerr << "Recorded image file name is required\n";
     return 1;
   }
   std::string name = absl::GetFlag(FLAGS_name);
@@ -38,6 +41,16 @@ int main(int argc, char* argv[]) {
     LOG(ERROR) << "Failed to open TBoard file: " << tboard_file.status();
     return 1;
   }
-  tboard_file->RecordLoss(0.5);
+
+  std::default_random_engine generator;
+  for (int i = 0; i < 100; ++i) {
+    double loss = static_cast<double>(rand() % 100) / 100.0;
+    double accuracy = static_cast<double>(rand() % 100) / 100.0;
+    tboard_file->AddScalar("loss", loss, i);
+    tboard_file->AddScalar("accuracy", accuracy, i);
+  }
+
+  tboard_file->AddImage("Traffic Sign", argv[2], 1, 148, 135, 3,
+                           "Traffic Sign", "Traffic Sign Image");
   return 0;
 }

@@ -1,0 +1,29 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "GDB Launch",
+            "type": "cppdbg",
+            "request": "launch",
+            "preLaunchTask": "Bazel Build (Debug)",
+            "program": "${workspaceFolder}/bazel-bin/src/example_util/example_util",
+            "args": [
+                "${workspaceFolder}/logs",
+                "${workspaceFolder}/test/assets/014_1_0012.png"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        }
+    ]
+}

@@ -19,3 +19,5 @@ git_override(
     remote = "https://github.com/eugeneo/bazel-compile-commands-extractor.git",
     commit = "0ae99b7adb025b251962942f6e8a698a5539888b",
 )
+
+bazel_dep(name = "crc32c", version = "1.1.0")
