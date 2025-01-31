@@ -1,10 +1,15 @@
 #include "uchen/tboard/tboard_file.h"
 
+#include <climits>
+#include <filesystem>
 #include <fstream>
 #include <ios>
 #include <sstream>
 #include <string>
-#include <filesystem>
+
+#ifdef _WIN32
+#include <winsock2.h>
+#endif
 
 #include "absl/log/log.h"
 
@@ -13,117 +18,107 @@
 #include "proto/summary.pb.h"
 #include "src/uchen/tboard/tboard_file.h"
 
-namespace uchen::tboard {
+namespace {
 
-TBoardFile::~TBoardFile() {
-  if (file_.is_open()) {
-    LOG(INFO) << "Closing log file";
-    file_.close();
-  }
+// MaskDelta is a fixed arbitrary number that is used to mask the CRC32
+// checksum. expected from TensorBoard.
+constexpr uint32_t kMaskDelta = 0xa282ead8ul;
+
 }
 
-absl::StatusOr<TBoardFile> TBoardFile::Open(std::string_view path) {
-  if (path.empty()) {
+namespace uchen::tboard {
+
+absl::StatusOr<TBoardFile> TBoardFile::Open(std::string_view logs_directory,
+                                            std::string_view log_name) {
+  if (logs_directory.empty()) {
     return absl::InvalidArgumentError("Log file name must be provided");
   }
 
-  if (path.find(uchen::tboard::kLogKey) == std::string::npos) {
-    return absl::InvalidArgumentError(absl::StrFormat(
-        "Log file name must contain \"%s\" to be processed by TensorBoard.",
-        uchen::tboard::kLogKey));
-  }
+  std::string timestamp =
+      absl::FormatTime("%Y%m%d-%H%M%S", absl::Now(), absl::UTCTimeZone());
+  std::filesystem::path events_directory =
+      std::filesystem::path(logs_directory) / std::filesystem::path(timestamp);
 
-  // If the path is a directory, make the directory if it doesn't exist.
-  if (path.find('/') != std::string::npos) {
-    std::string_view directory = path.substr(0, path.find_last_of('/'));
-
-    if (!std::filesystem::exists(directory)) {
-      if (!std::filesystem::create_directories(directory)) {
-        return absl::InternalError("Failed to create logs directory");
-      }
+  if (!std::filesystem::exists(events_directory)) {
+    if (!std::filesystem::create_directories(events_directory)) {
+      return absl::InternalError("Failed to create logs directory");
     }
   }
 
-  std::ofstream file(std::string(path), std::ios::binary);
+  std::string hostname = "localhost";
+  char hostname_buffer[HOST_NAME_MAX + 1];
+  if (gethostname(hostname_buffer, sizeof(hostname_buffer)) == 0) {
+    hostname = hostname_buffer;
+  }
+
+  std::string time_in_seconds = std::to_string(time(nullptr));
+
+  std::string filename = absl::StrFormat("%s.out.tfevents.%s.%s", log_name,
+                                         time_in_seconds, hostname);
+  std::filesystem::path file_path =
+      events_directory / std::filesystem::path(filename);
+  std::ofstream file(file_path, std::ios::binary);
+
   if (!file.is_open()) {
     return absl::InternalError("Failed to open file");
   }
   return TBoardFile(std::move(file));
 }
 
-void TBoardFile::RecordLoss(double loss, uint32_t step) {
-  LOG(INFO) << "Recording loss: " << loss;
-  TBoardFile::AddScalar("loss", loss, step);
-}
-
-void TBoardFile::RecordScalar(const std::string& tag, double value,
-                              uint32_t step) {
-  TBoardFile::AddScalar(tag, value, step);
-}
-
-void TBoardFile::RecordImage(const std::string& tag, const std::string& image,
-                             uint32_t step, uint32_t width, uint32_t height,
-                             uint32_t channel, const std::string& image_name,
-                             const std::string& image_description) {
-  std::string encoded_image = EncodeImage(image);
-
-  LOG(INFO) << "Recording image: " << tag;
-
-  tensorflow::SummaryMetadata* metadata = new tensorflow::SummaryMetadata();
-  if (!image_name.empty()) {
-    metadata->set_display_name(image_name);
-  } else {
-    metadata->set_display_name(tag);
-  }
-  metadata->set_summary_description(image_description);
-
-  tensorflow::Summary::Image* image_summary = new tensorflow::Summary::Image();
-  image_summary->set_width(width);
-  image_summary->set_height(height);
-  image_summary->set_colorspace(channel);
-  image_summary->set_encoded_image_string(encoded_image);
-
-  tensorflow::Summary* summary = new tensorflow::Summary();
-  tensorflow::Summary::Value* summary_value = summary->add_value();
-  if (!summary_value) {
-    LOG(ERROR) << "[" << tag << "] Failed to add value to summary";
-    return;
-  }
-
-  summary_value->set_tag(tag);
-  summary_value->set_allocated_image(image_summary);
-  summary_value->set_allocated_metadata(metadata);
-
-  AddEvent(summary, step);
-}
-
 void TBoardFile::AddScalar(const std::string& tag, double value,
                            uint32_t step) {
   LOG(INFO) << "Adding scalar: " << tag << ": " << value << ", Step: " << value;
 
-  tensorflow::Summary* summary = new tensorflow::Summary();
+  tensorflow::Summary summary;
 
-  tensorflow::Summary::Value* summary_value = summary->add_value();
-  if (!summary_value) {
-    LOG(ERROR) << "[" << tag << "] Failed to add value to summary";
-    return;
-  }
+  tensorflow::Summary::Value* summary_value = summary.add_value();
   summary_value->set_tag(tag);
   summary_value->set_simple_value(value);
 
   AddEvent(summary, step);
 }
 
-void TBoardFile::AddEvent(tensorflow::Summary* summary, uint32_t step) {
-  if (!summary) {
-    LOG(ERROR) << "Failed to add event to summary";
+void TBoardFile::AddImage(const std::string tag, const std::string& image,
+                          uint32_t step, uint32_t width, uint32_t height,
+                          uint32_t channel, const std::string& image_name,
+                          const std::string& image_description) {
+  auto encoded_image = EncodeImage(image);
+  if (!encoded_image.ok()) {
+    LOG(ERROR) << "Failed to Add image \"" << image_name
+               << "\": " << encoded_image.status();
     return;
   }
 
+  LOG(INFO) << "Recording image: " << tag;
+
+  tensorflow::SummaryMetadata metadata;
+  if (!image_name.empty()) {
+    metadata.set_display_name(image_name);
+  } else {
+    metadata.set_display_name(tag);
+  }
+  metadata.set_summary_description(image_description);
+
+  tensorflow::Summary::Image image_summary;
+  image_summary.set_width(width);
+  image_summary.set_height(height);
+  image_summary.set_colorspace(channel);
+  image_summary.set_encoded_image_string(encoded_image.value());
+
+  tensorflow::Summary summary;
+  tensorflow::Summary::Value* summary_value = summary.add_value();
+  summary_value->set_tag(tag);
+  summary_value->mutable_image()->Swap(&image_summary);
+  summary_value->mutable_metadata()->Swap(&metadata);
+
+  AddEvent(summary, step);
+}
+
+void TBoardFile::AddEvent(tensorflow::Summary& summary, uint32_t step) {
   tensorflow::Event event;
   event.set_wall_time(static_cast<double>(time(nullptr)));
   event.set_step(step);
-  event.mutable_summary()->Swap(summary);
+  event.mutable_summary()->Swap(&summary);
 
   std::string buffer;
   event.SerializeToString(&buffer);
@@ -142,12 +137,16 @@ void TBoardFile::AddEvent(tensorflow::Summary* summary, uint32_t step) {
   file_.write((char*)&crc_buffer, sizeof(uint32_t));
 }
 
-std::string TBoardFile::EncodeImage(const std::string& image) {
+absl::StatusOr<std::string> TBoardFile::EncodeImage(std::string_view image) {
   std::ostringstream string_stream;
-  std::ifstream file(image, std::ios::binary);
+  std::filesystem::path image_path(image);
+  if (!std::filesystem::exists(image_path)) {
+    return absl::InvalidArgumentError("Image file does not exist");
+  }
+
+  std::ifstream file(image_path, std::ios::binary);
   if (!file) {
-    LOG(ERROR) << "Failed to open image file: " << image;
-    return "";
+    return absl::InternalError("Failed to open image file");
   }
 
   string_stream << file.rdbuf();
@@ -163,6 +162,6 @@ std::string TBoardFile::EncodeImage(const std::string& image) {
 // somewhere (e.g., in files) should be masked before being stored.
 uint32_t TBoardFile::Mask(uint32_t crc) {
   // Rotate right by 15 bits and add a constant.
-  return ((crc >> 15) | (crc << 17)) + uchen::tboard::kMaskDelta;
+  return ((crc >> 15) | (crc << 17)) + kMaskDelta;
 }
 }  // namespace uchen::tboard

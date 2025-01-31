@@ -8,7 +8,7 @@
             "preLaunchTask": "Bazel Build (Debug)",
             "program": "${workspaceFolder}/bazel-bin/src/example_util/example_util",
             "args": [
-                "${workspaceFolder}/logs/events.out.tfevents",
+                "${workspaceFolder}/logs",
                 "${workspaceFolder}/test/assets/014_1_0012.png"
             ],
             "stopAtEntry": false,

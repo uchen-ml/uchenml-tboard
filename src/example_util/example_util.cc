@@ -46,11 +46,11 @@ int main(int argc, char* argv[]) {
   for (int i = 0; i < 100; ++i) {
     double loss = static_cast<double>(rand() % 100) / 100.0;
     double accuracy = static_cast<double>(rand() % 100) / 100.0;
-    tboard_file->RecordLoss(loss, i);
-    tboard_file->RecordScalar("accuracy", accuracy, i);
+    tboard_file->AddScalar("loss", loss, i);
+    tboard_file->AddScalar("accuracy", accuracy, i);
   }
 
-  tboard_file->RecordImage("Traffic Sign", argv[2], 1, 148, 135, 3,
+  tboard_file->AddImage("Traffic Sign", argv[2], 1, 148, 135, 3,
                            "Traffic Sign", "Traffic Sign Image");
   return 0;
 }
