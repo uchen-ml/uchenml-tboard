@@ -12,7 +12,7 @@ jobs:
     container: gcc:14.2.0
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - name: Install Bazelisk
       run: |
         apt update && apt upgrade -y && apt install curl -y && \
@@ -27,7 +27,7 @@ jobs:
     runs-on: macos-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - name: Run tests
       run: bazel test --test_output=errors --cxxopt="-Wall" --cxxopt="-Werror" //...
 
@@ -36,7 +36,7 @@ jobs:
     runs-on: windows-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - name: Run tests
       run: bazel test --test_output=errors --cxxopt="/WX" //...
 
