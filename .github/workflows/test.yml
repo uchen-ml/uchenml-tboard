@@ -9,7 +9,7 @@ jobs:
   gcc14-tests:
     name: GCC 14 Opt
     runs-on: ubuntu-latest
-    container: gcc:14.2.0
+    container: gcc:16.2.0
 
     steps:
     - uses: actions/checkout@v4
