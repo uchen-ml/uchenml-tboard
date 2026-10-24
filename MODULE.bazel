@@ -9,7 +9,7 @@ bazel_dep(name = "googletest", version = "1.15.2")
 git_override(
     module_name = "googletest",
     remote = "https://github.com/google/googletest.git",
-    commit = "e54519b09463cec3aea77a1739e02c97ca766da5",
+    commit = "cd8e73f067129f8489e35c7b51c7a68552b289d2",
 )
 
 # Dev dependencies
